@@ -36,7 +36,7 @@
     }
 
     .app {
-      width: min(780px, 100%);
+      width: min(640px, 100%);
       background: color-mix(in srgb, var(--panel) 94%, transparent);
       border: 1px solid var(--grid-line);
       border-radius: 16px;
@@ -114,7 +114,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: clamp(1rem, 3.5vw, 1.6rem);
+      font-size: clamp(1.15rem, 4.2vw, 1.85rem);
       font-weight: 700;
       cursor: pointer;
       min-height: 36px;
@@ -125,6 +125,9 @@
     .cell:hover { background: rgba(88, 166, 255, 0.08); }
     .cell.given { color: var(--given); }
     .cell.wrong { color: var(--danger); }
+    .cell.match {
+      background: color-mix(in srgb, var(--accent) 16%, transparent);
+    }
 
     .cell.thick-right { border-right: 2px solid var(--grid-bold); }
     .cell.thick-bottom { border-bottom: 2px solid var(--grid-bold); }
@@ -181,6 +184,7 @@
     @media (max-width: 560px) {
       .pad { grid-template-columns: repeat(4, minmax(0, 1fr)); }
       .app { padding: 0.75rem; }
+      body { padding: 0.5rem; }
     }
   </style>
 </head>
@@ -196,6 +200,7 @@
           <option value="expert">Expert</option>
         </select>
         <button id="newGameBtn">New Game</button>
+        <button id="hintBtn">Hint</button>
       </div>
       <div class="timer-wrap">
         <div class="timer" id="timer">00:00</div>
@@ -225,6 +230,7 @@
     const statusEl = document.getElementById('status');
     const difficultyEl = document.getElementById('difficulty');
     const newGameBtn = document.getElementById('newGameBtn');
+    const hintBtn = document.getElementById('hintBtn');
 
     let puzzle = [];
     let solution = [];
@@ -414,6 +420,9 @@
           if (puzzle[row][col] !== 0) cell.classList.add('given');
 
           const value = current[row][col];
+          if (typeof selectedInput === 'number' && value === selectedInput) {
+            cell.classList.add('match');
+          }
           if (value !== 0) {
             cell.textContent = value;
             if (value !== solution[row][col] && puzzle[row][col] === 0) {
@@ -477,6 +486,41 @@
       return true;
     }
 
+    function removePeerMarks(row, col, num) {
+      for (let c = 0; c < 9; c++) {
+        if (c !== col) marks[row][c].delete(num);
+      }
+      for (let r = 0; r < 9; r++) {
+        if (r !== row) marks[r][col].delete(num);
+      }
+      const boxRow = Math.floor(row / 3) * 3;
+      const boxCol = Math.floor(col / 3) * 3;
+      for (let r = boxRow; r < boxRow + 3; r++) {
+        for (let c = boxCol; c < boxCol + 3; c++) {
+          if (r === row && c === col) continue;
+          marks[r][c].delete(num);
+        }
+      }
+    }
+
+    function fillHintCell() {
+      const empties = [];
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (puzzle[r][c] === 0 && current[r][c] !== solution[r][c]) {
+            empties.push([r, c]);
+          }
+        }
+      }
+      if (empties.length === 0) return false;
+      const [row, col] = empties[Math.floor(Math.random() * empties.length)];
+      const value = solution[row][col];
+      current[row][col] = value;
+      marks[row][col].clear();
+      removePeerMarks(row, col, value);
+      return true;
+    }
+
     function onCellInput(index) {
       if (selectedInput === null) {
         statusEl.className = 'status';
@@ -487,6 +531,14 @@
       const row = Math.floor(index / 9);
       const col = index % 9;
       if (puzzle[row][col] !== 0) return;
+      if (current[row][col] !== 0 && current[row][col] !== solution[row][col]) {
+        current[row][col] = 0;
+        marks[row][col].clear();
+        renderBoard();
+        statusEl.className = 'status';
+        statusEl.textContent = 'Removed incorrect entry.';
+        return;
+      }
 
       if (selectedInput === 'erase') {
         current[row][col] = 0;
@@ -494,6 +546,11 @@
       } else if (typeof selectedInput === 'number') {
         if (pencilMode) {
           if (current[row][col] !== 0) return;
+          if (solution[row][col] !== selectedInput) {
+            statusEl.className = 'status';
+            statusEl.textContent = 'Pencil marks are only allowed for correct candidates.';
+            return;
+          }
           if (marks[row][col].has(selectedInput)) {
             marks[row][col].delete(selectedInput);
           } else {
@@ -502,6 +559,7 @@
         } else {
           current[row][col] = selectedInput;
           marks[row][col].clear();
+          removePeerMarks(row, col, selectedInput);
         }
       }
 
@@ -566,6 +624,50 @@
       const cell = e.target.closest('.cell');
       if (!cell) return;
       onCellInput(Number(cell.dataset.index));
+    });
+
+    hintBtn.addEventListener('click', () => {
+      const applied = fillHintCell();
+      renderBoard();
+      if (!applied) {
+        statusEl.className = 'status';
+        statusEl.textContent = 'No hint available. Board is complete.';
+        return;
+      }
+
+      if (checkWin()) {
+        stopTimer();
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        saveBestTime(difficultyEl.value, elapsed);
+        renderBestTime();
+        statusEl.className = 'status success';
+        statusEl.textContent = `Solved in ${formatTime(elapsed)}!`;
+      } else {
+        statusEl.className = 'status';
+        statusEl.textContent = 'Hint applied: one cell was filled correctly.';
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      const isTypingTarget = e.target instanceof HTMLElement && (
+        e.target.tagName === 'INPUT' ||
+        e.target.tagName === 'TEXTAREA' ||
+        e.target.tagName === 'SELECT'
+      );
+      if (isTypingTarget) return;
+
+      if (/^[1-9]$/.test(e.key)) {
+        selectedInput = Number(e.key);
+        renderPad();
+        renderBoard();
+      } else if (e.key === '0' || e.key === 'Backspace' || e.key === 'Delete') {
+        selectedInput = 'erase';
+        renderPad();
+        renderBoard();
+      } else if (e.key.toLowerCase() === 'p') {
+        pencilMode = !pencilMode;
+        renderPad();
+      }
     });
 
     newGameBtn.addEventListener('click', newGame);
