@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sudoku</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d1117;
+      --panel: #161b22;
+      --panel-2: #21262d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --danger: #f85149;
+      --grid-line: #30363d;
+      --grid-bold: #6e7681;
+      --given: #e6edf3;
+      --user: #79c0ff;
+      --mark: #a5d6ff;
+      --success: #3fb950;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(circle at top, #1f2937 0, var(--bg) 45%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .app {
+      width: min(780px, 100%);
+      background: color-mix(in srgb, var(--panel) 94%, transparent);
+      border: 1px solid var(--grid-line);
+      border-radius: 16px;
+      padding: 1rem;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+    }
+
+    .top {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 0.75rem;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    select, button {
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--grid-line);
+      border-radius: 10px;
+      padding: 0.5rem 0.8rem;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+
+    button:hover, select:hover { border-color: var(--accent); }
+
+    .timer-wrap {
+      text-align: right;
+      min-width: 145px;
+    }
+
+    .timer {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .best {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .status {
+      min-height: 1.35rem;
+      margin-bottom: 0.75rem;
+      color: var(--muted);
+    }
+
+    .status.success { color: var(--success); font-weight: 600; }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(9, 1fr);
+      aspect-ratio: 1 / 1;
+      border: 2px solid var(--grid-bold);
+      border-radius: 10px;
+      overflow: hidden;
+      user-select: none;
+      touch-action: manipulation;
+      background: #0b0f14;
+    }
+
+    .cell {
+      position: relative;
+      border: 1px solid var(--grid-line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(1rem, 3.5vw, 1.6rem);
+      font-weight: 700;
+      cursor: pointer;
+      min-height: 36px;
+      color: var(--user);
+      transition: background-color 0.15s ease;
+    }
+
+    .cell:hover { background: rgba(88, 166, 255, 0.08); }
+    .cell.given { color: var(--given); }
+    .cell.wrong { color: var(--danger); }
+
+    .cell.thick-right { border-right: 2px solid var(--grid-bold); }
+    .cell.thick-bottom { border-bottom: 2px solid var(--grid-bold); }
+
+    .marks {
+      position: absolute;
+      inset: 2px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      font-size: clamp(0.4rem, 1.6vw, 0.7rem);
+      color: var(--mark);
+      line-height: 1;
+      font-weight: 500;
+      pointer-events: none;
+    }
+
+    .marks span {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.9;
+    }
+
+    .pad {
+      margin-top: 1rem;
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 0.5rem;
+    }
+
+    .pad button {
+      padding: 0.75rem 0.25rem;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .pad button.selected {
+      background: color-mix(in srgb, var(--accent) 30%, var(--panel-2));
+      border-color: var(--accent);
+    }
+
+    .pad button.mode-on {
+      border-color: var(--mark);
+      color: var(--mark);
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-top: 0.75rem;
+    }
+
+    @media (max-width: 560px) {
+      .pad { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .app { padding: 0.75rem; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <div class="top">
+      <div class="controls">
+        <label for="difficulty">Difficulty</label>
+        <select id="difficulty">
+          <option value="easy">Easy</option>
+          <option value="medium">Medium</option>
+          <option value="hard">Hard</option>
+          <option value="expert">Expert</option>
+        </select>
+        <button id="newGameBtn">New Game</button>
+      </div>
+      <div class="timer-wrap">
+        <div class="timer" id="timer">00:00</div>
+        <div class="best" id="bestTime">Best: --:--</div>
+      </div>
+    </div>
+
+    <div class="status" id="status">Select a number first, then tap cells to enter it.</div>
+    <section class="board" id="board" aria-label="Sudoku board"></section>
+
+    <section class="pad" id="numberPad" aria-label="Number pad"></section>
+    <p class="hint">Input style: choose number ➜ tap cells. Toggle Pencil to place candidate marks.</p>
+  </main>
+
+  <script>
+    const DIFFICULTIES = {
+      easy: { givens: 40 },
+      medium: { givens: 33 },
+      hard: { givens: 28 },
+      expert: { givens: 24 }
+    };
+
+    const boardEl = document.getElementById('board');
+    const numberPadEl = document.getElementById('numberPad');
+    const timerEl = document.getElementById('timer');
+    const bestTimeEl = document.getElementById('bestTime');
+    const statusEl = document.getElementById('status');
+    const difficultyEl = document.getElementById('difficulty');
+    const newGameBtn = document.getElementById('newGameBtn');
+
+    let puzzle = [];
+    let solution = [];
+    let current = [];
+    let marks = [];
+    let selectedInput = null;
+    let pencilMode = false;
+    let startTime = null;
+    let timerId = null;
+
+    function createEmptyGrid() {
+      return Array.from({ length: 9 }, () => Array(9).fill(0));
+    }
+
+    function deepCopy(grid) {
+      return grid.map(row => [...row]);
+    }
+
+    function shuffle(arr) {
+      const out = [...arr];
+      for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+      }
+      return out;
+    }
+
+    function isValid(grid, row, col, num) {
+      for (let c = 0; c < 9; c++) if (grid[row][c] === num) return false;
+      for (let r = 0; r < 9; r++) if (grid[r][col] === num) return false;
+      const boxRow = Math.floor(row / 3) * 3;
+      const boxCol = Math.floor(col / 3) * 3;
+      for (let r = boxRow; r < boxRow + 3; r++) {
+        for (let c = boxCol; c < boxCol + 3; c++) {
+          if (grid[r][c] === num) return false;
+        }
+      }
+      return true;
+    }
+
+    function solveRandom(grid) {
+      for (let row = 0; row < 9; row++) {
+        for (let col = 0; col < 9; col++) {
+          if (grid[row][col] === 0) {
+            for (const num of shuffle([1,2,3,4,5,6,7,8,9])) {
+              if (isValid(grid, row, col, num)) {
+                grid[row][col] = num;
+                if (solveRandom(grid)) return true;
+                grid[row][col] = 0;
+              }
+            }
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    function countSolutions(grid, limit = 2) {
+      let count = 0;
+
+      function search() {
+        if (count >= limit) return;
+
+        let best = null;
+        let bestCandidates = null;
+
+        for (let r = 0; r < 9; r++) {
+          for (let c = 0; c < 9; c++) {
+            if (grid[r][c] !== 0) continue;
+            const candidates = [];
+            for (let n = 1; n <= 9; n++) if (isValid(grid, r, c, n)) candidates.push(n);
+            if (candidates.length === 0) return;
+            if (!best || candidates.length < bestCandidates.length) {
+              best = [r, c];
+              bestCandidates = candidates;
+              if (candidates.length === 1) break;
+            }
+          }
+        }
+
+        if (!best) {
+          count += 1;
+          return;
+        }
+
+        const [row, col] = best;
+        for (const n of bestCandidates) {
+          grid[row][col] = n;
+          search();
+          grid[row][col] = 0;
+          if (count >= limit) return;
+        }
+      }
+
+      search();
+      return count;
+    }
+
+    function makePuzzle(difficulty) {
+      const full = createEmptyGrid();
+      solveRandom(full);
+      const puz = deepCopy(full);
+      const targetGivens = DIFFICULTIES[difficulty].givens;
+
+      const cells = shuffle(Array.from({ length: 81 }, (_, i) => i));
+      let filled = 81;
+
+      for (const idx of cells) {
+        if (filled <= targetGivens) break;
+        const r = Math.floor(idx / 9);
+        const c = idx % 9;
+        const saved = puz[r][c];
+        puz[r][c] = 0;
+
+        const test = deepCopy(puz);
+        if (countSolutions(test, 2) !== 1) {
+          puz[r][c] = saved;
+        } else {
+          filled -= 1;
+        }
+      }
+
+      return { puzzle: puz, solution: full };
+    }
+
+    function formatTime(seconds) {
+      const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+      const s = (seconds % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function updateTimer() {
+      if (!startTime) return;
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      timerEl.textContent = formatTime(elapsed);
+    }
+
+    function stopTimer() {
+      clearInterval(timerId);
+      timerId = null;
+    }
+
+    function startTimer() {
+      stopTimer();
+      startTime = Date.now();
+      updateTimer();
+      timerId = setInterval(updateTimer, 1000);
+    }
+
+    function getBestTimes() {
+      try {
+        return JSON.parse(localStorage.getItem('sudokuBestTimes') || '{}');
+      } catch {
+        return {};
+      }
+    }
+
+    function saveBestTime(difficulty, seconds) {
+      const times = getBestTimes();
+      if (!times[difficulty] || seconds < times[difficulty]) {
+        times[difficulty] = seconds;
+        localStorage.setItem('sudokuBestTimes', JSON.stringify(times));
+      }
+    }
+
+    function renderBestTime() {
+      const difficulty = difficultyEl.value;
+      const times = getBestTimes();
+      bestTimeEl.textContent = `Best: ${times[difficulty] ? formatTime(times[difficulty]) : '--:--'}`;
+    }
+
+    function cellIndex(row, col) {
+      return row * 9 + col;
+    }
+
+    function renderBoard() {
+      boardEl.innerHTML = '';
+
+      for (let row = 0; row < 9; row++) {
+        for (let col = 0; col < 9; col++) {
+          const cell = document.createElement('button');
+          cell.type = 'button';
+          cell.className = 'cell';
+          if ((col + 1) % 3 === 0 && col !== 8) cell.classList.add('thick-right');
+          if ((row + 1) % 3 === 0 && row !== 8) cell.classList.add('thick-bottom');
+          if (puzzle[row][col] !== 0) cell.classList.add('given');
+
+          const value = current[row][col];
+          if (value !== 0) {
+            cell.textContent = value;
+            if (value !== solution[row][col] && puzzle[row][col] === 0) {
+              cell.classList.add('wrong');
+            }
+          } else {
+            const markWrap = document.createElement('div');
+            markWrap.className = 'marks';
+            for (let n = 1; n <= 9; n++) {
+              const span = document.createElement('span');
+              span.textContent = marks[row][col].has(n) ? String(n) : '';
+              markWrap.appendChild(span);
+            }
+            cell.appendChild(markWrap);
+          }
+
+          cell.dataset.index = cellIndex(row, col);
+          boardEl.appendChild(cell);
+        }
+      }
+    }
+
+    function renderPad() {
+      numberPadEl.innerHTML = '';
+      for (let n = 1; n <= 9; n++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = String(n);
+        btn.dataset.input = String(n);
+        if (selectedInput === n) btn.classList.add('selected');
+        numberPadEl.appendChild(btn);
+      }
+
+      const eraseBtn = document.createElement('button');
+      eraseBtn.type = 'button';
+      eraseBtn.textContent = 'Erase';
+      eraseBtn.dataset.input = 'erase';
+      if (selectedInput === 'erase') eraseBtn.classList.add('selected');
+      numberPadEl.appendChild(eraseBtn);
+
+      const pencilBtn = document.createElement('button');
+      pencilBtn.type = 'button';
+      pencilBtn.textContent = `Pencil ${pencilMode ? 'On' : 'Off'}`;
+      pencilBtn.dataset.input = 'pencil-toggle';
+      if (pencilMode) pencilBtn.classList.add('mode-on');
+      numberPadEl.appendChild(pencilBtn);
+
+      const clearMarksBtn = document.createElement('button');
+      clearMarksBtn.type = 'button';
+      clearMarksBtn.textContent = 'Clear Marks';
+      clearMarksBtn.dataset.input = 'clear-marks';
+      numberPadEl.appendChild(clearMarksBtn);
+    }
+
+    function checkWin() {
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (current[r][c] !== solution[r][c]) return false;
+        }
+      }
+      return true;
+    }
+
+    function onCellInput(index) {
+      if (selectedInput === null) {
+        statusEl.className = 'status';
+        statusEl.textContent = 'Pick a number (or Erase) first.';
+        return;
+      }
+
+      const row = Math.floor(index / 9);
+      const col = index % 9;
+      if (puzzle[row][col] !== 0) return;
+
+      if (selectedInput === 'erase') {
+        current[row][col] = 0;
+        marks[row][col].clear();
+      } else if (typeof selectedInput === 'number') {
+        if (pencilMode) {
+          if (current[row][col] !== 0) return;
+          if (marks[row][col].has(selectedInput)) {
+            marks[row][col].delete(selectedInput);
+          } else {
+            marks[row][col].add(selectedInput);
+          }
+        } else {
+          current[row][col] = selectedInput;
+          marks[row][col].clear();
+        }
+      }
+
+      renderBoard();
+      if (checkWin()) {
+        stopTimer();
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        saveBestTime(difficultyEl.value, elapsed);
+        renderBestTime();
+        statusEl.className = 'status success';
+        statusEl.textContent = `Solved in ${formatTime(elapsed)}!`; 
+      } else {
+        statusEl.className = 'status';
+        statusEl.textContent = pencilMode
+          ? 'Pencil mode on: tap cells to toggle marks.'
+          : 'Number mode: tap cells to place selected number.';
+      }
+    }
+
+    function newGame() {
+      statusEl.className = 'status';
+      statusEl.textContent = 'Generating puzzle...';
+      const difficulty = difficultyEl.value;
+      const made = makePuzzle(difficulty);
+      puzzle = made.puzzle;
+      solution = made.solution;
+      current = deepCopy(puzzle);
+      marks = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set()));
+      selectedInput = 1;
+      pencilMode = false;
+      renderPad();
+      renderBoard();
+      renderBestTime();
+      startTimer();
+      statusEl.textContent = 'Select a number first, then tap cells to enter it.';
+    }
+
+    numberPadEl.addEventListener('click', (e) => {
+      const button = e.target.closest('button');
+      if (!button) return;
+      const input = button.dataset.input;
+
+      if (input === 'pencil-toggle') {
+        pencilMode = !pencilMode;
+      } else if (input === 'clear-marks') {
+        for (let r = 0; r < 9; r++) {
+          for (let c = 0; c < 9; c++) {
+            if (puzzle[r][c] === 0 && current[r][c] === 0) marks[r][c].clear();
+          }
+        }
+      } else if (input === 'erase') {
+        selectedInput = 'erase';
+      } else {
+        selectedInput = Number(input);
+      }
+
+      renderPad();
+      renderBoard();
+    });
+
+    boardEl.addEventListener('click', (e) => {
+      const cell = e.target.closest('.cell');
+      if (!cell) return;
+      onCellInput(Number(cell.dataset.index));
+    });
+
+    newGameBtn.addEventListener('click', newGame);
+    difficultyEl.addEventListener('change', () => {
+      renderBestTime();
+      newGame();
+    });
+
+    newGame();
+  </script>
+</body>
+</html>
