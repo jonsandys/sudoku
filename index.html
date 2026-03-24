@@ -20,6 +20,8 @@
       --user: #79c0ff;
       --mark: #a5d6ff;
       --success: #3fb950;
+      --match-bg: rgba(88, 166, 255, 0.34);
+      --match-ring: rgba(121, 192, 255, 0.95);
     }
 
     * { box-sizing: border-box; }
@@ -126,7 +128,11 @@
     .cell.given { color: var(--given); }
     .cell.wrong { color: var(--danger); }
     .cell.match {
-      background: color-mix(in srgb, var(--accent) 16%, transparent);
+      background: var(--match-bg);
+      box-shadow:
+        inset 0 0 0 2px var(--match-ring),
+        inset 0 0 18px rgba(88, 166, 255, 0.25);
+      text-shadow: 0 0 12px rgba(121, 192, 255, 0.65);
     }
 
     .cell.thick-right { border-right: 2px solid var(--grid-bold); }
