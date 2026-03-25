@@ -160,6 +160,14 @@
       opacity: 0.9;
     }
 
+    .marks span.mark-match {
+      background: rgba(88, 166, 255, 0.28);
+      border-radius: 6px;
+      box-shadow: inset 0 0 0 1px rgba(121, 192, 255, 0.9);
+      color: #d2ebff;
+      opacity: 1;
+    }
+
     .pad {
       margin-top: 1rem;
       display: grid;
@@ -168,9 +176,14 @@
     }
 
     .pad button {
+      min-height: 52px;
       padding: 0.75rem 0.25rem;
       font-size: 1rem;
       font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
     }
 
     .pad button.selected {
@@ -239,7 +252,7 @@
     let marks = [];
     let selectedInput = null;
     let pencilMode = false;
-    let autoPencilMode = true;
+    let autoPencilMode = false;
     let startTime = null;
     let timerId = null;
 
@@ -436,6 +449,13 @@
             for (let n = 1; n <= 9; n++) {
               const span = document.createElement('span');
               span.textContent = marks[row][col].has(n) ? String(n) : '';
+              if (
+                typeof selectedInput === 'number' &&
+                selectedInput === n &&
+                marks[row][col].has(n)
+              ) {
+                span.classList.add('mark-match');
+              }
               markWrap.appendChild(span);
             }
             cell.appendChild(markWrap);
@@ -458,13 +478,6 @@
         if (isDigitCompleted(n)) btn.disabled = true;
         numberPadEl.appendChild(btn);
       }
-
-      const eraseBtn = document.createElement('button');
-      eraseBtn.type = 'button';
-      eraseBtn.textContent = 'Erase';
-      eraseBtn.dataset.input = 'erase';
-      if (selectedInput === 'erase') eraseBtn.classList.add('selected');
-      numberPadEl.appendChild(eraseBtn);
 
       const pencilBtn = document.createElement('button');
       pencilBtn.type = 'button';
@@ -605,18 +618,16 @@
           statusEl.textContent = `${selectedInput} is already completed.`;
           return;
         }
-        if (pencilMode) {
+        if (current[row][col] === 0 && marks[row][col].has(selectedInput)) {
+          marks[row][col].delete(selectedInput);
+        } else if (pencilMode) {
           if (current[row][col] !== 0) return;
           if (!isMarkAllowed(row, col, selectedInput)) {
             statusEl.className = 'status';
             statusEl.textContent = 'That mark is invalid for this row, column, or box.';
             return;
           }
-          if (marks[row][col].has(selectedInput)) {
-            marks[row][col].delete(selectedInput);
-          } else {
-            marks[row][col].add(selectedInput);
-          }
+          marks[row][col].add(selectedInput);
         } else {
           if (!isMarkAllowed(row, col, selectedInput)) {
             statusEl.className = 'status';
@@ -657,7 +668,7 @@
       marks = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set()));
       selectedInput = 1;
       pencilMode = false;
-      autoPencilMode = true;
+      autoPencilMode = false;
       computeAutoMarks();
       renderPad();
       renderBoard();
