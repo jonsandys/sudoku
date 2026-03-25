@@ -54,7 +54,7 @@
       justify-content: space-between;
       gap: 0.75rem;
       align-items: center;
-      margin-bottom: 1rem;
+      margin-bottom: 0;
     }
 
     .controls {
@@ -93,9 +93,13 @@
     }
 
     .status {
-      min-height: 1.35rem;
-      margin-bottom: 0.75rem;
+      min-height: 0;
+      margin: 0;
       color: var(--muted);
+    }
+
+    .status:not(:empty) {
+      margin: 0.5rem 0;
     }
 
     .status.success { color: var(--success); font-weight: 600; }
@@ -188,6 +192,10 @@
       overflow-wrap: anywhere;
       line-height: 1.1;
       text-align: center;
+    }
+
+    .pad button.number-btn {
+      font-size: clamp(1.1rem, 3vw, 1.4rem);
     }
 
     .pad button.selected {
@@ -482,6 +490,7 @@
         btn.type = 'button';
         btn.textContent = String(n);
         btn.dataset.input = String(n);
+        btn.classList.add('number-btn');
         if (selectedInput === n) btn.classList.add('selected');
         if (isDigitCompleted(n)) btn.disabled = true;
         numberPadEl.appendChild(btn);
@@ -678,7 +687,6 @@
       selectedInput = 1;
       pencilMode = false;
       autoPencilMode = false;
-      computeAutoMarks();
       renderPad();
       renderBoard();
       renderBestTime();
