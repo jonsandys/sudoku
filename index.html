@@ -49,12 +49,17 @@
     }
 
     .top {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
+      display: grid;
       gap: 0.75rem;
-      align-items: center;
-      margin-bottom: 0;
+      margin-bottom: 0.5rem;
+    }
+
+    .meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.75rem;
+      min-height: 1.5rem;
     }
 
     .controls {
@@ -77,7 +82,7 @@
     button:hover, select:hover { border-color: var(--accent); }
 
     .timer-wrap {
-      text-align: right;
+      text-align: left;
       min-width: 145px;
     }
 
@@ -93,13 +98,10 @@
     }
 
     .status {
-      min-height: 0;
       margin: 0;
       color: var(--muted);
-    }
-
-    .status:not(:empty) {
-      margin: 0.5rem 0;
+      text-align: right;
+      min-height: 1.25rem;
     }
 
     .status.success { color: var(--success); font-weight: 600; }
@@ -246,6 +248,13 @@
 <body>
   <main class="app">
     <div class="top">
+      <div class="meta">
+        <div class="timer-wrap">
+          <div class="timer" id="timer">00:00</div>
+          <div class="best" id="bestTime">Best: --:--</div>
+        </div>
+        <div class="status" id="status"></div>
+      </div>
       <div class="controls">
         <label for="difficulty">Difficulty</label>
         <select id="difficulty">
@@ -257,13 +266,7 @@
         <button id="newGameBtn">New Game</button>
         <button id="hintBtn">Hint</button>
       </div>
-      <div class="timer-wrap">
-        <div class="timer" id="timer">00:00</div>
-        <div class="best" id="bestTime">Best: --:--</div>
-      </div>
     </div>
-
-    <div class="status" id="status"></div>
     <section class="board" id="board" aria-label="Sudoku board"></section>
 
     <section class="pad" id="numberPad" aria-label="Number pad"></section>
@@ -668,11 +671,7 @@
     }
 
     function onCellInput(index) {
-      if (selectedInput === null) {
-        statusEl.className = 'status';
-        statusEl.textContent = 'Pick a number first.';
-        return;
-      }
+      if (selectedInput === null) return;
 
       const row = Math.floor(index / 9);
       const col = index % 9;
@@ -681,8 +680,6 @@
         current[row][col] = 0;
         marks[row][col].clear();
         renderBoard();
-        statusEl.className = 'status';
-        statusEl.textContent = 'Removed incorrect entry.';
         return;
       }
 
@@ -690,28 +687,18 @@
         current[row][col] = 0;
         marks[row][col].clear();
       } else if (typeof selectedInput === 'number') {
-        if (isDigitCompleted(selectedInput)) {
-          statusEl.className = 'status';
-          statusEl.textContent = `${selectedInput} is already completed.`;
-          return;
-        }
+        if (isDigitCompleted(selectedInput)) return;
         if (pencilMode) {
           if (current[row][col] !== 0) return;
           if (marks[row][col].has(selectedInput)) {
             marks[row][col].delete(selectedInput);
           } else if (!isMarkAllowed(row, col, selectedInput)) {
-            statusEl.className = 'status';
-            statusEl.textContent = 'That mark is invalid for this row, column, or box.';
             return;
           } else {
             marks[row][col].add(selectedInput);
           }
         } else {
-          if (!isMarkAllowed(row, col, selectedInput)) {
-            statusEl.className = 'status';
-            statusEl.textContent = 'That move repeats a number in this row, column, or box.';
-            return;
-          }
+          if (!isMarkAllowed(row, col, selectedInput)) return;
           const previousCount = countCorrectPlacements(selectedInput);
           current[row][col] = selectedInput;
           marks[row][col].clear();
