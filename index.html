@@ -177,6 +177,7 @@
 
     .pad button {
       min-height: 52px;
+      min-width: 0;
       padding: 0.75rem 0.25rem;
       font-size: clamp(0.72rem, 2.1vw, 1rem);
       font-weight: 700;
@@ -203,6 +204,10 @@
       .pad { grid-template-columns: repeat(4, minmax(0, 1fr)); }
       .app { padding: 0.75rem; }
       body { padding: 0.5rem; }
+      .controls button {
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
     }
   </style>
 </head>
@@ -621,16 +626,17 @@
           statusEl.textContent = `${selectedInput} is already completed.`;
           return;
         }
-        if (current[row][col] === 0 && marks[row][col].has(selectedInput)) {
-          marks[row][col].delete(selectedInput);
-        } else if (pencilMode) {
+        if (pencilMode) {
           if (current[row][col] !== 0) return;
-          if (!isMarkAllowed(row, col, selectedInput)) {
+          if (marks[row][col].has(selectedInput)) {
+            marks[row][col].delete(selectedInput);
+          } else if (!isMarkAllowed(row, col, selectedInput)) {
             statusEl.className = 'status';
             statusEl.textContent = 'That mark is invalid for this row, column, or box.';
             return;
+          } else {
+            marks[row][col].add(selectedInput);
           }
-          marks[row][col].add(selectedInput);
         } else {
           if (!isMarkAllowed(row, col, selectedInput)) {
             statusEl.className = 'status';
