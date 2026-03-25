@@ -178,12 +178,15 @@
     .pad button {
       min-height: 52px;
       padding: 0.75rem 0.25rem;
-      font-size: 1rem;
+      font-size: clamp(0.72rem, 2.1vw, 1rem);
       font-weight: 700;
       display: flex;
       align-items: center;
       justify-content: center;
-      white-space: nowrap;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      line-height: 1.1;
+      text-align: center;
     }
 
     .pad button.selected {
