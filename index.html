@@ -175,7 +175,7 @@
     .pad {
       margin-top: 1rem;
       display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 0.5rem;
     }
 
@@ -195,7 +195,15 @@
     }
 
     .pad button.number-btn {
-      font-size: clamp(1.1rem, 3vw, 1.4rem);
+      font-size: clamp(1.35rem, 4vw, 1.8rem);
+    }
+
+    .pad button.clear-marks-btn {
+      grid-column: 1 / span 2;
+    }
+
+    .pad button.auto-pencil-btn {
+      grid-column: 3 / span 3;
     }
 
     .pad button.selected {
@@ -209,7 +217,7 @@
     }
 
     @media (max-width: 560px) {
-      .pad { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .pad { grid-template-columns: repeat(5, minmax(0, 1fr)); }
       .app { padding: 0.75rem; }
       body { padding: 0.5rem; }
       .controls button {
@@ -268,7 +276,6 @@
     let marks = [];
     let selectedInput = null;
     let pencilMode = false;
-    let autoPencilMode = false;
     let startTime = null;
     let timerId = null;
 
@@ -511,10 +518,12 @@
 
       const autoPencilBtn = document.createElement('button');
       autoPencilBtn.type = 'button';
-      autoPencilBtn.textContent = `Auto Pencil ${autoPencilMode ? 'On' : 'Off'}`;
-      autoPencilBtn.dataset.input = 'auto-pencil-toggle';
-      if (autoPencilMode) autoPencilBtn.classList.add('mode-on');
+      autoPencilBtn.textContent = 'Auto Pencil';
+      autoPencilBtn.dataset.input = 'auto-pencil';
+      autoPencilBtn.classList.add('auto-pencil-btn');
       numberPadEl.appendChild(autoPencilBtn);
+
+      clearMarksBtn.classList.add('clear-marks-btn');
     }
 
     function checkWin() {
@@ -610,7 +619,7 @@
     function onCellInput(index) {
       if (selectedInput === null) {
         statusEl.className = 'status';
-        statusEl.textContent = 'Pick a number (or Erase) first.';
+        statusEl.textContent = 'Pick a number first.';
         return;
       }
 
@@ -658,8 +667,6 @@
         }
       }
 
-      if (autoPencilMode) computeAutoMarks();
-
       renderBoard();
       renderPad();
       if (checkWin()) {
@@ -686,7 +693,6 @@
       marks = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set()));
       selectedInput = 1;
       pencilMode = false;
-      autoPencilMode = false;
       renderPad();
       renderBoard();
       renderBestTime();
@@ -701,9 +707,8 @@
 
       if (input === 'pencil-toggle') {
         pencilMode = !pencilMode;
-      } else if (input === 'auto-pencil-toggle') {
-        autoPencilMode = !autoPencilMode;
-        if (autoPencilMode) computeAutoMarks();
+      } else if (input === 'auto-pencil') {
+        computeAutoMarks();
       } else if (input === 'clear-marks') {
         for (let r = 0; r < 9; r++) {
           for (let c = 0; c < 9; c++) {
@@ -728,7 +733,6 @@
 
     hintBtn.addEventListener('click', () => {
       const applied = fillHintCell();
-      if (autoPencilMode) computeAutoMarks();
       renderBoard();
       renderPad();
       if (!applied) {
