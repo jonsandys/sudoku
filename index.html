@@ -146,10 +146,10 @@
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       grid-template-rows: repeat(3, 1fr);
-      font-size: clamp(0.4rem, 1.6vw, 0.7rem);
+      font-size: clamp(0.6rem, 2.1vw, 0.95rem);
       color: var(--mark);
       line-height: 1;
-      font-weight: 500;
+      font-weight: 700;
       pointer-events: none;
     }
 
@@ -183,12 +183,6 @@
       color: var(--mark);
     }
 
-    .hint {
-      color: var(--muted);
-      font-size: 0.85rem;
-      margin-top: 0.75rem;
-    }
-
     @media (max-width: 560px) {
       .pad { grid-template-columns: repeat(4, minmax(0, 1fr)); }
       .app { padding: 0.75rem; }
@@ -216,11 +210,10 @@
       </div>
     </div>
 
-    <div class="status" id="status">Select a number first, then tap cells to enter it.</div>
+    <div class="status" id="status"></div>
     <section class="board" id="board" aria-label="Sudoku board"></section>
 
     <section class="pad" id="numberPad" aria-label="Number pad"></section>
-    <p class="hint">Input style: choose number ➜ tap cells. Toggle Pencil to place candidate marks.</p>
   </main>
 
   <script>
@@ -246,6 +239,7 @@
     let marks = [];
     let selectedInput = null;
     let pencilMode = false;
+    let autoPencilMode = true;
     let startTime = null;
     let timerId = null;
 
@@ -461,6 +455,7 @@
         btn.textContent = String(n);
         btn.dataset.input = String(n);
         if (selectedInput === n) btn.classList.add('selected');
+        if (isDigitCompleted(n)) btn.disabled = true;
         numberPadEl.appendChild(btn);
       }
 
@@ -483,6 +478,13 @@
       clearMarksBtn.textContent = 'Clear Marks';
       clearMarksBtn.dataset.input = 'clear-marks';
       numberPadEl.appendChild(clearMarksBtn);
+
+      const autoPencilBtn = document.createElement('button');
+      autoPencilBtn.type = 'button';
+      autoPencilBtn.textContent = `Auto Pencil ${autoPencilMode ? 'On' : 'Off'}`;
+      autoPencilBtn.dataset.input = 'auto-pencil-toggle';
+      if (autoPencilMode) autoPencilBtn.classList.add('mode-on');
+      numberPadEl.appendChild(autoPencilBtn);
     }
 
     function checkWin() {
@@ -507,6 +509,35 @@
         for (let c = boxCol; c < boxCol + 3; c++) {
           if (r === row && c === col) continue;
           marks[r][c].delete(num);
+        }
+      }
+    }
+
+    function countCorrectPlacements(num) {
+      let count = 0;
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (current[r][c] === num && solution[r][c] === num) count += 1;
+        }
+      }
+      return count;
+    }
+
+    function isDigitCompleted(num) {
+      return countCorrectPlacements(num) >= 9;
+    }
+
+    function computeAutoMarks() {
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (current[r][c] !== 0) {
+            marks[r][c].clear();
+            continue;
+          }
+          marks[r][c].clear();
+          for (let n = 1; n <= 9; n++) {
+            if (isMarkAllowed(r, c, n)) marks[r][c].add(n);
+          }
         }
       }
     }
@@ -569,6 +600,11 @@
         current[row][col] = 0;
         marks[row][col].clear();
       } else if (typeof selectedInput === 'number') {
+        if (isDigitCompleted(selectedInput)) {
+          statusEl.className = 'status';
+          statusEl.textContent = `${selectedInput} is already completed.`;
+          return;
+        }
         if (pencilMode) {
           if (current[row][col] !== 0) return;
           if (!isMarkAllowed(row, col, selectedInput)) {
@@ -582,13 +618,21 @@
             marks[row][col].add(selectedInput);
           }
         } else {
+          if (!isMarkAllowed(row, col, selectedInput)) {
+            statusEl.className = 'status';
+            statusEl.textContent = 'That move repeats a number in this row, column, or box.';
+            return;
+          }
           current[row][col] = selectedInput;
           marks[row][col].clear();
           removePeerMarks(row, col, selectedInput);
         }
       }
 
+      if (autoPencilMode) computeAutoMarks();
+
       renderBoard();
+      renderPad();
       if (checkWin()) {
         stopTimer();
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
@@ -598,15 +642,13 @@
         statusEl.textContent = `Solved in ${formatTime(elapsed)}!`; 
       } else {
         statusEl.className = 'status';
-        statusEl.textContent = pencilMode
-          ? 'Pencil mode on: tap cells to toggle marks.'
-          : 'Number mode: tap cells to place selected number.';
+        statusEl.textContent = '';
       }
     }
 
     function newGame() {
       statusEl.className = 'status';
-      statusEl.textContent = 'Generating puzzle...';
+      statusEl.textContent = '';
       const difficulty = difficultyEl.value;
       const made = makePuzzle(difficulty);
       puzzle = made.puzzle;
@@ -615,11 +657,13 @@
       marks = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set()));
       selectedInput = 1;
       pencilMode = false;
+      autoPencilMode = true;
+      computeAutoMarks();
       renderPad();
       renderBoard();
       renderBestTime();
       startTimer();
-      statusEl.textContent = 'Select a number first, then tap cells to enter it.';
+      statusEl.textContent = '';
     }
 
     numberPadEl.addEventListener('click', (e) => {
@@ -629,6 +673,9 @@
 
       if (input === 'pencil-toggle') {
         pencilMode = !pencilMode;
+      } else if (input === 'auto-pencil-toggle') {
+        autoPencilMode = !autoPencilMode;
+        if (autoPencilMode) computeAutoMarks();
       } else if (input === 'clear-marks') {
         for (let r = 0; r < 9; r++) {
           for (let c = 0; c < 9; c++) {
@@ -653,10 +700,12 @@
 
     hintBtn.addEventListener('click', () => {
       const applied = fillHintCell();
+      if (autoPencilMode) computeAutoMarks();
       renderBoard();
+      renderPad();
       if (!applied) {
         statusEl.className = 'status';
-        statusEl.textContent = 'No hint available. Board is complete.';
+        statusEl.textContent = '';
         return;
       }
 
@@ -669,7 +718,7 @@
         statusEl.textContent = `Solved in ${formatTime(elapsed)}!`;
       } else {
         statusEl.className = 'status';
-        statusEl.textContent = 'Hint applied: one cell was filled correctly.';
+        statusEl.textContent = '';
       }
     });
 
