@@ -198,6 +198,10 @@
       font-size: clamp(1.35rem, 4vw, 1.8rem);
     }
 
+    .pad button.number-btn.completed {
+      opacity: 0.5;
+    }
+
     .pad button.clear-marks-btn {
       grid-column: 1 / span 2;
     }
@@ -214,6 +218,18 @@
     .pad button.mode-on {
       border-color: var(--mark);
       color: var(--mark);
+    }
+
+    @keyframes completeFlash {
+      0%, 100% { background: var(--match-bg); }
+      50% { background: rgba(63, 185, 80, 0.48); }
+    }
+
+    .cell.complete-flash {
+      animation: completeFlash 0.45s ease-in-out 2;
+      box-shadow:
+        inset 0 0 0 2px rgba(63, 185, 80, 0.95),
+        inset 0 0 20px rgba(63, 185, 80, 0.35);
     }
 
     @media (max-width: 560px) {
@@ -278,6 +294,8 @@
     let pencilMode = false;
     let startTime = null;
     let timerId = null;
+    let flashingDigit = null;
+    let flashTimeoutId = null;
 
     function createEmptyGrid() {
       return Array.from({ length: 9 }, () => Array(9).fill(0));
@@ -461,6 +479,9 @@
           if (typeof selectedInput === 'number' && value === selectedInput) {
             cell.classList.add('match');
           }
+          if (flashingDigit !== null && value === flashingDigit && solution[row][col] === flashingDigit) {
+            cell.classList.add('complete-flash');
+          }
           if (value !== 0) {
             cell.textContent = value;
             if (value !== solution[row][col] && puzzle[row][col] === 0) {
@@ -499,7 +520,10 @@
         btn.dataset.input = String(n);
         btn.classList.add('number-btn');
         if (selectedInput === n) btn.classList.add('selected');
-        if (isDigitCompleted(n)) btn.disabled = true;
+        if (isDigitCompleted(n)) {
+          btn.disabled = true;
+          btn.classList.add('completed');
+        }
         numberPadEl.appendChild(btn);
       }
 
@@ -566,6 +590,31 @@
       return countCorrectPlacements(num) >= 9;
     }
 
+    function findNextIncompleteDigit(startAfter) {
+      for (let offset = 1; offset <= 9; offset++) {
+        const candidate = ((startAfter - 1 + offset) % 9) + 1;
+        if (!isDigitCompleted(candidate)) return candidate;
+      }
+      return null;
+    }
+
+    function flashCompletedDigit(num) {
+      flashingDigit = num;
+      renderBoard();
+      clearTimeout(flashTimeoutId);
+      flashTimeoutId = setTimeout(() => {
+        flashingDigit = null;
+        renderBoard();
+      }, 900);
+    }
+
+    function handleDigitCompletionTransition(num, beforeCount) {
+      if (beforeCount >= 9 || !isDigitCompleted(num)) return;
+      flashCompletedDigit(num);
+      const nextIncomplete = findNextIncompleteDigit(num);
+      if (nextIncomplete !== null) selectedInput = nextIncomplete;
+    }
+
     function computeAutoMarks() {
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
@@ -610,9 +659,11 @@
       if (empties.length === 0) return false;
       const [row, col] = empties[Math.floor(Math.random() * empties.length)];
       const value = solution[row][col];
+      const previousCount = countCorrectPlacements(value);
       current[row][col] = value;
       marks[row][col].clear();
       removePeerMarks(row, col, value);
+      handleDigitCompletionTransition(value, previousCount);
       return true;
     }
 
@@ -661,9 +712,11 @@
             statusEl.textContent = 'That move repeats a number in this row, column, or box.';
             return;
           }
+          const previousCount = countCorrectPlacements(selectedInput);
           current[row][col] = selectedInput;
           marks[row][col].clear();
           removePeerMarks(row, col, selectedInput);
+          handleDigitCompletionTransition(selectedInput, previousCount);
         }
       }
 
