@@ -205,11 +205,21 @@
     }
 
     .pad button.clear-marks-btn {
-      grid-column: 1 / span 2;
+      grid-column: 2 / span 2;
+    }
+
+    .pad button.pencil-marks-btn {
+      grid-column: 4 / span 2;
+    }
+
+    .pad button.undo-btn {
+      grid-column: 1 / span 1;
     }
 
     .pad button.auto-pencil-btn {
-      grid-column: 3 / span 3;
+      font-size: clamp(0.66rem, 1.9vw, 0.92rem);
+      min-height: 48px;
+      padding: 0.5rem 0.25rem;
     }
 
     .pad button.selected {
@@ -220,6 +230,12 @@
     .pad button.mode-on {
       border-color: var(--mark);
       color: var(--mark);
+    }
+
+    #hintBtn.hint-disabled {
+      opacity: 0.42;
+      cursor: not-allowed;
+      border-color: var(--grid-line);
     }
 
     @keyframes completeFlash {
@@ -299,6 +315,9 @@
     let timerId = null;
     let flashingDigit = null;
     let flashTimeoutId = null;
+    let hintsUsed = 0;
+    let undoState = null;
+    const MAX_HINTS = 2;
 
     function createEmptyGrid() {
       return Array.from({ length: 9 }, () => Array(9).fill(0));
@@ -306,6 +325,10 @@
 
     function deepCopy(grid) {
       return grid.map(row => [...row]);
+    }
+
+    function deepCopyMarks(source) {
+      return source.map(row => row.map(cellMarks => new Set(cellMarks)));
     }
 
     function shuffle(arr) {
@@ -530,10 +553,26 @@
         numberPadEl.appendChild(btn);
       }
 
+      const autoPencilBtn = document.createElement('button');
+      autoPencilBtn.type = 'button';
+      autoPencilBtn.textContent = 'Auto Pencil';
+      autoPencilBtn.dataset.input = 'auto-pencil';
+      autoPencilBtn.classList.add('auto-pencil-btn');
+      numberPadEl.appendChild(autoPencilBtn);
+
+      const undoBtn = document.createElement('button');
+      undoBtn.type = 'button';
+      undoBtn.textContent = 'Undo';
+      undoBtn.dataset.input = 'undo';
+      undoBtn.classList.add('undo-btn');
+      undoBtn.disabled = !undoState;
+      numberPadEl.appendChild(undoBtn);
+
       const pencilBtn = document.createElement('button');
       pencilBtn.type = 'button';
       pencilBtn.textContent = `Pencil ${pencilMode ? 'On' : 'Off'}`;
       pencilBtn.dataset.input = 'pencil-toggle';
+      pencilBtn.classList.add('pencil-marks-btn');
       if (pencilMode) pencilBtn.classList.add('mode-on');
       numberPadEl.appendChild(pencilBtn);
 
@@ -543,14 +582,38 @@
       clearMarksBtn.dataset.input = 'clear-marks';
       numberPadEl.appendChild(clearMarksBtn);
 
-      const autoPencilBtn = document.createElement('button');
-      autoPencilBtn.type = 'button';
-      autoPencilBtn.textContent = 'Auto Pencil';
-      autoPencilBtn.dataset.input = 'auto-pencil';
-      autoPencilBtn.classList.add('auto-pencil-btn');
-      numberPadEl.appendChild(autoPencilBtn);
-
       clearMarksBtn.classList.add('clear-marks-btn');
+    }
+
+    function updateHintButton() {
+      const remaining = Math.max(0, MAX_HINTS - hintsUsed);
+      hintBtn.textContent = `Hint (${remaining})`;
+      hintBtn.disabled = remaining === 0;
+      hintBtn.classList.toggle('hint-disabled', remaining === 0);
+    }
+
+    function saveUndoState() {
+      undoState = {
+        current: deepCopy(current),
+        marks: deepCopyMarks(marks),
+        selectedInput,
+        pencilMode,
+        hintsUsed
+      };
+    }
+
+    function applyUndoState() {
+      if (!undoState) return false;
+      current = deepCopy(undoState.current);
+      marks = deepCopyMarks(undoState.marks);
+      selectedInput = undoState.selectedInput;
+      pencilMode = undoState.pencilMode;
+      hintsUsed = undoState.hintsUsed;
+      undoState = null;
+      updateHintButton();
+      statusEl.className = 'status';
+      statusEl.textContent = '';
+      return true;
     }
 
     function checkWin() {
@@ -676,39 +739,60 @@
       const row = Math.floor(index / 9);
       const col = index % 9;
       if (puzzle[row][col] !== 0) return;
+      let changed = false;
+      let undoSaved = false;
+      const beginMutation = () => {
+        if (!undoSaved) {
+          saveUndoState();
+          undoSaved = true;
+        }
+      };
+
       if (current[row][col] !== 0 && current[row][col] !== solution[row][col]) {
+        beginMutation();
         current[row][col] = 0;
         marks[row][col].clear();
+        changed = true;
         renderBoard();
+        renderPad();
         return;
       }
 
       if (selectedInput === 'erase') {
+        beginMutation();
         current[row][col] = 0;
         marks[row][col].clear();
+        changed = true;
       } else if (typeof selectedInput === 'number') {
         if (isDigitCompleted(selectedInput)) return;
         if (pencilMode) {
           if (current[row][col] !== 0) return;
+          beginMutation();
           if (marks[row][col].has(selectedInput)) {
             marks[row][col].delete(selectedInput);
           } else if (!isMarkAllowed(row, col, selectedInput)) {
+            if (undoSaved) undoState = null;
             return;
           } else {
             marks[row][col].add(selectedInput);
           }
+          changed = true;
         } else {
           if (!isMarkAllowed(row, col, selectedInput)) return;
+          beginMutation();
           const previousCount = countCorrectPlacements(selectedInput);
           current[row][col] = selectedInput;
           marks[row][col].clear();
           removePeerMarks(row, col, selectedInput);
           handleDigitCompletionTransition(selectedInput, previousCount);
+          changed = true;
         }
       }
 
+      if (!changed && undoSaved) undoState = null;
       renderBoard();
       renderPad();
+      if (!changed) return;
       if (checkWin()) {
         stopTimer();
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
@@ -733,9 +817,12 @@
       marks = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set()));
       selectedInput = 1;
       pencilMode = false;
+      hintsUsed = 0;
+      undoState = null;
       renderPad();
       renderBoard();
       renderBestTime();
+      updateHintButton();
       startTimer();
       statusEl.textContent = '';
     }
@@ -748,8 +835,12 @@
       if (input === 'pencil-toggle') {
         pencilMode = !pencilMode;
       } else if (input === 'auto-pencil') {
+        saveUndoState();
         computeAutoMarks();
+      } else if (input === 'undo') {
+        applyUndoState();
       } else if (input === 'clear-marks') {
+        saveUndoState();
         for (let r = 0; r < 9; r++) {
           for (let c = 0; c < 9; c++) {
             if (puzzle[r][c] === 0 && current[r][c] === 0) marks[r][c].clear();
@@ -772,14 +863,19 @@
     });
 
     hintBtn.addEventListener('click', () => {
+      if (hintsUsed >= MAX_HINTS) return;
+      saveUndoState();
       const applied = fillHintCell();
       renderBoard();
       renderPad();
       if (!applied) {
+        undoState = null;
         statusEl.className = 'status';
         statusEl.textContent = '';
         return;
       }
+      hintsUsed += 1;
+      updateHintButton();
 
       if (checkWin()) {
         stopTimer();
