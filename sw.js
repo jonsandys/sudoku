@@ -1,15 +1,11 @@
-const CACHE_NAME = 'sudoku-v15';
+const CACHE_NAME = 'sudoku-v16';
 const APP_SHELL = [
-  './',
-  './index.html',
-  './manifest.webmanifest',
-  './icons/icon.svg',
-  './icons/icon-maskable.svg',
-  '/',
-  '/index.html',
-  '/manifest.webmanifest',
-  '/icons/icon.svg',
-  '/icons/icon-maskable.svg'
+  '/sudoku/',
+  '/sudoku/index.html',
+  '/sudoku/manifest.webmanifest',
+  '/sudoku/icons/icon.svg',
+  '/sudoku/icons/icon-maskable.svg',
+  '/sudoku/sw.js'
 ];
 
 self.addEventListener('install', (event) => {
@@ -41,7 +37,7 @@ self.addEventListener('fetch', (event) => {
 
       return fetch(event.request).catch(() => {
         if (event.request.mode === 'navigate') {
-          return caches.match('./index.html');
+          return caches.match('/sudoku/index.html');
         }
         return new Response('Offline', {
           status: 503,
