@@ -737,11 +737,14 @@
     }
 
     function onCellInput(index) {
-      if (selectedInput === null) return;
-
       const row = Math.floor(index / 9);
       const col = index % 9;
       if (puzzle[row][col] !== 0) return;
+
+      const hasSinglePencilMark = !pencilMode && current[row][col] === 0 && marks[row][col].size === 1;
+      const inferredInput = hasSinglePencilMark ? [...marks[row][col]][0] : null;
+      if (selectedInput === null && inferredInput === null) return;
+
       let changed = false;
       let undoSaved = false;
       const beginMutation = () => {
@@ -761,33 +764,34 @@
         return;
       }
 
-      if (selectedInput === 'erase') {
+      if (selectedInput === 'erase' && inferredInput === null) {
         beginMutation();
         current[row][col] = 0;
         marks[row][col].clear();
         changed = true;
-      } else if (typeof selectedInput === 'number') {
-        if (isDigitCompleted(selectedInput)) return;
+      } else if (typeof selectedInput === 'number' || inferredInput !== null) {
+        const inputToApply = inferredInput ?? selectedInput;
+        if (isDigitCompleted(inputToApply)) return;
         if (pencilMode) {
           if (current[row][col] !== 0) return;
           beginMutation();
-          if (marks[row][col].has(selectedInput)) {
-            marks[row][col].delete(selectedInput);
-          } else if (!isMarkAllowed(row, col, selectedInput)) {
+          if (marks[row][col].has(inputToApply)) {
+            marks[row][col].delete(inputToApply);
+          } else if (!isMarkAllowed(row, col, inputToApply)) {
             if (undoSaved) undoState = null;
             return;
           } else {
-            marks[row][col].add(selectedInput);
+            marks[row][col].add(inputToApply);
           }
           changed = true;
         } else {
-          if (!isMarkAllowed(row, col, selectedInput)) return;
+          if (!isMarkAllowed(row, col, inputToApply)) return;
           beginMutation();
-          const previousCount = countCorrectPlacements(selectedInput);
-          current[row][col] = selectedInput;
+          const previousCount = countCorrectPlacements(inputToApply);
+          current[row][col] = inputToApply;
           marks[row][col].clear();
-          removePeerMarks(row, col, selectedInput);
-          handleDigitCompletionTransition(selectedInput, previousCount);
+          removePeerMarks(row, col, inputToApply);
+          handleDigitCompletionTransition(inputToApply, previousCount);
           changed = true;
         }
       }
