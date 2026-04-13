@@ -10,7 +10,13 @@ const APP_SHELL = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(
+        APP_SHELL.map((asset) =>
+          cache.add(new Request(asset, { cache: 'reload' }))
+        )
+      )
+    )
   );
   self.skipWaiting();
 });
@@ -30,11 +36,17 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  const requestUrl = new URL(event.request.url);
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) return cachedResponse;
-
+  if (requestUrl.origin !== self.location.origin) {
+    event.respondWith(
+      new Response('Offline-first mode blocks network-dependent third-party requests.', {
+        status: 503,
+        statusText: 'Unavailable Offline'
+      })
+    );
+    return;
+  }
       return fetch(event.request).catch(() => {
         if (event.request.mode === 'navigate') {
           return caches.match('/sudoku/index.html');
